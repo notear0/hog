@@ -33,6 +33,86 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const randomDelay = (min = 800, max = 2000) =>
   sleep(Math.floor(Math.random() * (max - min) + min));
 
+// 메인 페이지에서 모든 "Counters" 링크 추출
+async function extractCounterLinks(page) {
+  console.log("   → 캐릭터 Counters 링크 수집 중...");
+  
+  const links = await page.evaluate(() => {
+    const results = [];
+    
+    // "Counters" 버튼/링크 찾기
+    const counterLinks = document.querySelectorAll('a[href*="/gac/counters/"]');
+    
+    counterLinks.forEach((link) => {
+      const href = link.getAttribute('href');
+      const text = link.textContent?.trim();
+      
+      // 시즌 페이지 자체는 제외 (seasonNumber 링크들)
+      if (href && text && !href.includes('/season/') && text.toLowerCase().includes('counter')) {
+        const characterName = text.split(' ')[0]; // 첫 단어를 캐릭터명으로 추정
+        results.push({
+          character: characterName,
+          href: href,
+          fullText: text,
+        });
+      }
+    });
+    
+    return results;
+  });
+  
+  console.log(`   → 수집된 링크: ${links.length}개`);
+  return links;
+}
+
+// 각 카운터 페이지에서 캐릭터별 승률 크롤링
+async function crawlCharacterCounters(page, url, characterName) {
+  try {
+    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+    await randomDelay(800, 1500);
+    
+    const counterData = await page.evaluate(() => {
+      const results = [];
+      
+      // 테이블에서 행 추출
+      const rows = document.querySelectorAll('table tbody tr');
+      
+      rows.forEach((row) => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 2) {
+          const unitName = cells[0]?.textContent?.trim() || '';
+          const winRate = cells[1]?.textContent?.trim() || '';
+          
+          if (unitName && winRate) {
+            results.push({
+              unit: unitName,
+              winRate: winRate,
+            });
+          }
+        }
+      });
+      
+      return results;
+    });
+    
+    return {
+      character: characterName,
+      url: url,
+      counters: counterData,
+      success: true,
+    };
+  } catch (err) {
+    console.warn(`   ⚠️ ${characterName} 크롤링 실패: ${err.message}`);
+    return {
+      character: characterName,
+      url: url,
+      counters: [],
+      success: false,
+      error: err.message,
+    };
+  }
+}
+
 async function crawlGAC(browser, target) {
   const seasonNumbers = [
     target.seasonNumber + 2,  // 시도 1: 최신 시즌 (+2)
@@ -42,8 +122,10 @@ async function crawlGAC(browser, target) {
   
   for (let attempt = 0; attempt < seasonNumbers.length; attempt++) {
     const currentSeasonNumber = seasonNumbers[attempt];
-    const url = buildGACUrl(currentSeasonNumber);
-    console.log(`\n[${target.key}] 크롤링 시작 (시도 ${attempt + 1}/${seasonNumbers.length}): ${url}`);
+    const baseUrl = buildGACUrl(currentSeasonNumber);
+    const seasonId = `CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_${currentSeasonNumber}`;
+    
+    console.log(`\n[${target.key}] 크롤링 시작 (시도 ${attempt + 1}/${seasonNumbers.length}): ${baseUrl}`);
 
     const context = await browser.newContext({
       userAgent:
@@ -59,134 +141,64 @@ async function crawlGAC(browser, target) {
     const page = await context.newPage();
 
     try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+      // 1. 메인 시즌 페이지 방문
+      await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 60000 });
       await randomDelay(1500, 3000);
 
-      // 시즌 정보 추출
+      // 2. 페이지에서 시즌 정보 추출
       const seasonText = await page
         .locator(".gac-season-title, h1, .season-label")
         .first()
         .textContent()
         .catch(() => "Unknown Season");
 
-      // 배틀 수 추출
-      const battlesText = await page
-        .locator("text=/\\d+(\\.\\d+)?[KM]? Battles/")
-        .first()
-        .textContent()
-        .catch(() => "");
-
       console.log(`[${target.key}] 시즌: ${seasonText?.trim()}`);
-      console.log(`[${target.key}] 배틀 수: ${battlesText?.trim()}`);
 
-      // 카운터 테이블의 각 행 파싱
-      // swgoh.gg 카운터 페이지: 방어팀 리더 → 카운터 팀 목록 구조
-      const counters = await page.evaluate(() => {
-        const results = [];
-
-        // 방어팀 섹션들을 순회
-        const defenseBlocks = document.querySelectorAll(
-          ".counters-block, .counter-group, [class*='counter-row'], table tbody tr"
-        );
-
-        defenseBlocks.forEach((block, idx) => {
-          if (idx > 49) return; // 상위 50개만
-
-          // 방어 리더 이름
-          const defLeaderEl =
-            block.querySelector(".char-name, .unit-name, td:first-child a") ||
-            block.querySelector("a");
-          const defLeader = defLeaderEl?.textContent?.trim() || "";
-
-          if (!defLeader) return;
-
-          // 카운터 목록
-          const counterItems = block.querySelectorAll(
-            ".counter-item, .counter-squad, td:nth-child(2) .unit, td"
-          );
-          const counterList = [];
-          counterItems.forEach((ci) => {
-            const name = ci.textContent?.trim();
-            if (name && name !== defLeader && name.length > 1) {
-              counterList.push(name);
-            }
-          });
-
-          // 승률 / Hold% 등
-          const winRateEl = block.querySelector(
-            ".win-rate, .hold-rate, [class*='rate'], td:nth-child(3)"
-          );
-          const winRate = winRateEl?.textContent?.trim() || "";
-
-          // 전투 수
-          const countEl = block.querySelector(
-            ".battle-count, [class*='count'], td:nth-child(4)"
-          );
-          const battleCount = countEl?.textContent?.trim() || "";
-
-          results.push({
-            defense: defLeader,
-            counters: counterList.slice(0, 5),
-            winRate,
-            battleCount,
-          });
-        });
-
-        return results;
-      });
-
-      // 만약 위 선택자가 빈 배열이면, 페이지 전체 HTML 스냅샷 저장 후 분석용으로 활용
-      let finalData = counters;
-      if (counters.length === 0) {
-        console.warn(
-          `[${target.key}] 일반 선택자로 파싱 실패 — 대체 파싱 시도`
-        );
-
-        // 대체: 모든 링크와 숫자를 구조화해서 저장
-        finalData = await page.evaluate(() => {
-          const rows = [];
-          // 테이블이 있는 경우
-          document.querySelectorAll("table").forEach((table) => {
-            const headers = [...table.querySelectorAll("thead th")].map((th) =>
-              th.textContent.trim()
-            );
-            table.querySelectorAll("tbody tr").forEach((tr) => {
-              const cells = [...tr.querySelectorAll("td")].map((td) =>
-                td.textContent.trim()
-              );
-              if (cells.length > 0) {
-                const obj = {};
-                headers.forEach((h, i) => {
-                  obj[h || `col${i}`] = cells[i] || "";
-                });
-                rows.push(obj);
-              }
-            });
-          });
-          return rows;
-        });
+      // 3. 모든 "Counters" 링크 추출
+      const counterLinks = await extractCounterLinks(page);
+      
+      if (counterLinks.length === 0) {
+        throw new Error("No counter links found on the page");
       }
 
-      // 마지막 업데이트 시각 추출
-      const lastUpdated = await page
-        .locator("text=/Last updated/i, text=/Updated/i")
-        .first()
-        .textContent()
-        .catch(() => "");
+      // 4. 각 카운터 링크를 순회하면서 데이터 수집
+      const allCounterData = [];
+      
+      for (let i = 0; i < counterLinks.length; i++) {
+        const link = counterLinks[i];
+        const fullUrl = link.href.startsWith('http') 
+          ? link.href 
+          : `https://swgoh.gg${link.href}`;
+        
+        // season_id 파라미터 추가
+        const urlWithSeasonId = `${fullUrl}${fullUrl.includes('?') ? '&' : '?'}season_id=${seasonId}`;
+        
+        console.log(`   [${i + 1}/${counterLinks.length}] ${link.character} 크롤링...`);
+        
+        const result = await crawlCharacterCounters(page, urlWithSeasonId, link.character);
+        allCounterData.push(result);
+        
+        await randomDelay(600, 1200);
+      }
 
+      // 5. 최종 데이터 저장
       const output = {
         type: target.key,
         season: seasonText?.trim() || "",
-        totalBattles: battlesText?.trim() || "",
-        lastUpdated: lastUpdated?.trim() || new Date().toISOString(),
+        seasonId: seasonId,
+        seasonNumber: currentSeasonNumber,
+        totalCharacters: allCounterData.length,
+        lastUpdated: new Date().toISOString(),
         crawledAt: new Date().toISOString(),
-        counters: finalData,
+        data: allCounterData,
       };
 
       const outPath = path.join(DATA_DIR, target.outputFile);
       fs.writeFileSync(outPath, JSON.stringify(output, null, 2), "utf-8");
+      
+      const successCount = allCounterData.filter(d => d.success).length;
       console.log(
-        `[${target.key}] ✅ 저장 완료: ${outPath} (${finalData.length}개 항목)`
+        `[${target.key}] ✅ 저장 완료: ${outPath} (${successCount}/${allCounterData.length}개 캐릭터)`
       );
 
       await context.close();
@@ -205,11 +217,13 @@ async function crawlGAC(browser, target) {
         const fallback = {
           type: target.key,
           season: "",
-          totalBattles: "",
+          seasonId: "",
+          seasonNumber: 0,
+          totalCharacters: 0,
           lastUpdated: new Date().toISOString(),
           crawledAt: new Date().toISOString(),
           error: err.message,
-          counters: [],
+          data: [],
         };
         fs.writeFileSync(
           path.join(DATA_DIR, target.outputFile),
