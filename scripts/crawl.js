@@ -40,25 +40,33 @@ async function extractCounterLinks(page) {
   const links = await page.evaluate(() => {
     const results = [];
     
-    // "Counters" 버튼/링크 찾기
-    const counterLinks = document.querySelectorAll('a[href*="/gac/counters/"]');
+    const counterLinks = Array.from(document.querySelectorAll('a[href*="/gac/counters/"]'));
     
     counterLinks.forEach((link) => {
       const href = link.getAttribute('href');
       const text = link.textContent?.trim();
       
-      // 시즌 페이지 자체는 제외 (seasonNumber 링크들)
-      if (href && text && !href.includes('/season/') && text.toLowerCase().includes('counter')) {
-        const characterName = text.split(' ')[0]; // 첫 단어를 캐릭터명으로 추정
-        results.push({
-          character: characterName,
-          href: href,
-          fullText: text,
-        });
-      }
+      if (!href || !text) return;
+      if (href.includes('/season/')) return; // 시즌 페이지 자체 링크 제외
+
+      const match = text.match(/(.+?)\s+Counters$/i);
+      const characterName = match ? match[1].trim() : text;
+      const normalizedHref = href.trim();
+
+      if (!normalizedHref) return;
+      if (!/counter/i.test(text)) return;
+
+      results.push({
+        character: characterName,
+        href: normalizedHref,
+        fullText: text,
+      });
     });
     
-    return results;
+    // 중복 링크 제거
+    return results.filter((item, index, arr) =>
+      index === arr.findIndex((other) => other.href === item.href)
+    );
   });
   
   console.log(`   → 수집된 링크: ${links.length}개`);
@@ -69,29 +77,45 @@ async function extractCounterLinks(page) {
 async function crawlCharacterCounters(page, url, characterName) {
   try {
     await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+    await page.waitForSelector('table tbody tr, .counter-row, .counter-item', { timeout: 10000 }).catch(() => null);
     await randomDelay(800, 1500);
     
     const counterData = await page.evaluate(() => {
       const results = [];
-      
-      // 테이블에서 행 추출
-      const rows = document.querySelectorAll('table tbody tr');
-      
-      rows.forEach((row) => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length >= 2) {
-          const unitName = cells[0]?.textContent?.trim() || '';
-          const winRate = cells[1]?.textContent?.trim() || '';
-          
+      const table = document.querySelector('table');
+
+      if (table) {
+        const headers = Array.from(table.querySelectorAll('thead th')).map((th) =>
+          th.textContent?.trim().toLowerCase() || ''
+        );
+        const nameIndex = headers.findIndex((h) => /name|unit|character|defense/i.test(h));
+        const winIndex = headers.findIndex((h) => /win|rate|hold|percent|%/i.test(h));
+        const firstRows = Array.from(table.querySelectorAll('tbody tr'));
+
+        firstRows.forEach((row) => {
+          const cells = row.querySelectorAll('td');
+          if (cells.length < 2) return;
+
+          const unitName = cells[nameIndex >= 0 ? nameIndex : 0]?.textContent?.trim() || '';
+          const winRate = cells[winIndex >= 0 ? winIndex : 1]?.textContent?.trim() || '';
           if (unitName && winRate) {
-            results.push({
-              unit: unitName,
-              winRate: winRate,
-            });
+            results.push({ unit: unitName, winRate });
           }
-        }
-      });
-      
+        });
+      }
+
+      if (results.length === 0) {
+        const altRows = Array.from(document.querySelectorAll('.counter-row, .counter-item'));
+        altRows.forEach((row) => {
+          const text = row.textContent?.trim() || '';
+          if (!text) return;
+          const parts = text.split(/\s{2,}|\n/).map((part) => part.trim()).filter(Boolean);
+          if (parts.length >= 2) {
+            results.push({ unit: parts[0], winRate: parts[1] });
+          }
+        });
+      }
+
       return results;
     });
     
@@ -166,12 +190,13 @@ async function crawlGAC(browser, target) {
       
       for (let i = 0; i < counterLinks.length; i++) {
         const link = counterLinks[i];
-        const fullUrl = link.href.startsWith('http') 
-          ? link.href 
+        const fullUrl = link.href.startsWith('http')
+          ? link.href
           : `https://swgoh.gg${link.href}`;
         
-        // season_id 파라미터 추가
-        const urlWithSeasonId = `${fullUrl}${fullUrl.includes('?') ? '&' : '?'}season_id=${seasonId}`;
+        const parsedUrl = new URL(fullUrl);
+        parsedUrl.searchParams.set('season_id', seasonId);
+        const urlWithSeasonId = parsedUrl.toString();
         
         console.log(`   [${i + 1}/${counterLinks.length}] ${link.character} 크롤링...`);
         
