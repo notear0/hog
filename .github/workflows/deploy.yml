@@ -1,0 +1,57 @@
+name: 프론트엔드 빌드 & GitHub Pages 배포
+
+on:
+  push:
+    branches: [main]
+  # 크롤링 워크플로우가 완료된 후 자동 실행
+  workflow_run:
+    workflows: ["SWGOH GAC 데이터 크롤링"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: 의존성 설치
+        run: npm ci --ignore-scripts
+
+      - name: Vite 빌드
+        run: npm run build
+
+      # 크롤링된 data/*.json 을 빌드 결과물에 포함
+      - name: data 폴더 복사
+        run: cp -r data dist/data
+
+      - name: GitHub Pages 설정
+        uses: actions/configure-pages@v4
+
+      - name: 빌드 결과 업로드
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: GitHub Pages 배포
+        id: deployment
+        uses: actions/deploy-pages@v4

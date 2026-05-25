@@ -1,0 +1,53 @@
+name: SWGOH GAC 데이터 크롤링
+
+on:
+  # 매일 한국시간 오전 9시 (UTC 00:00) 자동 실행
+  schedule:
+    - cron: "0 0 * * *"
+
+  # 수동으로도 실행 가능 (GitHub Actions 탭에서 버튼 클릭)
+  workflow_dispatch:
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 코드 체크아웃
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      # 2. Node.js 설치
+      - name: Node.js 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # 3. 의존성 설치
+      - name: 의존성 설치
+        run: npm ci
+
+      # 4. Playwright 브라우저 설치 (Chromium만)
+      - name: Playwright Chromium 설치
+        run: npx playwright install chromium --with-deps
+
+      # 5. 크롤러 실행
+      - name: GAC 데이터 크롤링
+        run: npm run crawl
+
+      # 6. 변경된 JSON 파일을 저장소에 커밋
+      - name: 데이터 파일 커밋 & 푸시
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🤖 GAC 데이터 자동 업데이트 (${{ env.date }})"
+          file_pattern: "data/*.json"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "github-actions[bot]@users.noreply.github.com"
+        env:
+          date: ${{ steps.date.outputs.date }}
+
+      # 날짜 환경변수 세팅
+      - name: 날짜 설정
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
