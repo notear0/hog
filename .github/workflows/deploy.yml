@@ -35,7 +35,7 @@ jobs:
           cache: "npm"
 
       - name: 의존성 설치
-        run: npm ci --ignore-scripts
+        run: npm install --ignore-scripts
 
       - name: Vite 빌드
         run: npm run build
