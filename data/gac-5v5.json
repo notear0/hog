@@ -1,7 +1,9 @@
 {
   "type": "5v5",
-  "season": "데이터 로딩 중...",
+  "season": "",
   "totalBattles": "",
-  "crawledAt": "",
+  "lastUpdated": "2026-05-25T03:35:51.768Z",
+  "crawledAt": "2026-05-25T03:35:51.768Z",
+  "error": "page.goto: Timeout 60000ms exceeded.\nCall log:\n  - navigating to \"https://swgoh.gg/gac/counters/?season=5v5\", waiting until \"networkidle\"\n",
   "counters": []
 }
