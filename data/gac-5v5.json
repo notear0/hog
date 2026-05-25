@@ -1,24 +1,11 @@
 {
   "type": "5v5",
-  "season": "404 Page Not Found",
-  "seasonId": "CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_80",
-  "seasonNumber": 80,
-  "totalCharacters": 2,
-  "lastUpdated": "2026-05-25T04:01:55.091Z",
-  "crawledAt": "2026-05-25T04:01:55.091Z",
-  "data": [
-    {
-      "character": "Counters",
-      "url": "https://swgoh.gg/gac/counters/?season_id=CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_80",
-      "counters": [],
-      "success": false,
-      "error": "page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"https://swgoh.gg/gac/counters/?season_id=CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_80\", waiting until \"networkidle\"\n"
-    },
-    {
-      "character": "Counters",
-      "url": "https://swgoh.gg/gac/counters/?season_id=CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_80",
-      "counters": [],
-      "success": true
-    }
-  ]
+  "season": "",
+  "seasonId": "",
+  "seasonNumber": 0,
+  "totalCharacters": 0,
+  "lastUpdated": "2026-05-25T04:23:55.338Z",
+  "crawledAt": "2026-05-25T04:23:55.338Z",
+  "error": "page.goto: Timeout 60000ms exceeded.\nCall log:\n  - navigating to \"https://swgoh.gg/gac/counters/season/CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_76/\", waiting until \"networkidle\"\n",
+  "data": []
 }
