@@ -4,8 +4,8 @@
   "seasonId": "",
   "seasonNumber": 0,
   "totalCharacters": 0,
-  "lastUpdated": "2026-05-25T04:23:55.338Z",
-  "crawledAt": "2026-05-25T04:23:55.338Z",
+  "lastUpdated": "2026-05-31T04:16:21.311Z",
+  "crawledAt": "2026-05-31T04:16:21.311Z",
   "error": "page.goto: Timeout 60000ms exceeded.\nCall log:\n  - navigating to \"https://swgoh.gg/gac/counters/season/CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_76/\", waiting until \"networkidle\"\n",
   "data": []
 }

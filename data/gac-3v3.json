@@ -1,17 +1,11 @@
 {
   "type": "3v3",
-  "season": "404 Page Not Found",
-  "seasonId": "CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_79",
-  "seasonNumber": 79,
-  "totalCharacters": 1,
-  "lastUpdated": "2026-05-25T04:24:26.915Z",
-  "crawledAt": "2026-05-25T04:24:26.915Z",
-  "data": [
-    {
-      "character": "Counters",
-      "url": "https://swgoh.gg/gac/counters/?season_id=CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_79",
-      "counters": [],
-      "success": true
-    }
-  ]
+  "season": "",
+  "seasonId": "",
+  "seasonNumber": 0,
+  "totalCharacters": 0,
+  "lastUpdated": "2026-05-31T04:19:32.039Z",
+  "crawledAt": "2026-05-31T04:19:32.039Z",
+  "error": "page.goto: Timeout 60000ms exceeded.\nCall log:\n  - navigating to \"https://swgoh.gg/gac/counters/season/CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_75/\", waiting until \"networkidle\"\n",
+  "data": []
 }
